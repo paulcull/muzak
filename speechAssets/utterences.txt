@@ -1,6 +1,7 @@
 StartPlayer start
 StartPlayer play {Player}
 StartPlayer play music in {Player}
+StartPlayer turn on {Player}
 StartPlayer start {Player}
 StartPlayer start player in {Player}
 StartPlayer start player {Player}

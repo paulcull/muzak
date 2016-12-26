@@ -82,9 +82,10 @@ function onLaunch(launchRequest, session, callback) {
 
     // Connect to the squeeze server and wait for it to finish its registration. We do this to make sure that it is online
 
-    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword);
+    // var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword);
+    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort);
     squeezeserver.on('register', function() {
-        startInteractiveSession(callback)
+        startInteractiveSession(callback);
     });
 }
 
@@ -100,6 +101,10 @@ function onIntent(intentRequest, session, callback) {
 
     console.log("onIntent requestId=" + intentRequest.requestId + ", sessionId=" + session.sessionId);
 
+
+    console.log("*********");
+    console.log(JSON.stringify(intentRequest));
+
     // Check for a Close intent
 
     if (intentRequest.intent.intentName == "Close") {
@@ -110,18 +115,24 @@ function onIntent(intentRequest, session, callback) {
 
     // Connect to the squeeze server and wait for it to finish its registration
 
-    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword);
+//    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword);
+
+    //console.log("********");
+    //console.log(config);
+    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort);
     squeezeserver.on('register', function() {
 
         // Get the list of players as any request will require them
 
         squeezeserver.getPlayers(function(reply) {
+          //console.log("******");
+          //console.log(reply);
             if (reply.ok) {
                 console.log("getPlayers: %j", reply);
                 dispatchIntent(squeezeserver, reply.result, intentRequest.intent, session, callback);
             } else
                 callback(session.attributes, buildSpeechletResponse("Get Players", "Failed to get list of players", null, true));
-        })
+        });
     });
 }
 
@@ -147,10 +158,10 @@ function dispatchIntent(squeezeserver, players, intent, session, callback) {
 
         // Try to find the target player
 
-        var player = findPlayerObject(squeezeserver, players, ((typeof intent.slots.Player.value !== 'undefined') && (intent.slots.Player.value != null) ?
+        var player = findPlayerObject(squeezeserver, players, ((typeof intent.slots.Player.value !== 'undefined') && (intent.slots.Player.value !== null) ?
                                                                            intent.slots.Player.value :
                                                                            (typeof session.attributes !== 'undefined' ? session.attributes.player : "")));
-        if (player == null) {
+        if (player === null) {
 
             // Couldn't find the player, return an error response
 
@@ -159,7 +170,7 @@ function dispatchIntent(squeezeserver, players, intent, session, callback) {
 
         } else {
 
-            console.log("Player is " + player);
+            console.log("Player is " + JSON.stringify(player));
             session.attributes = {player: player.name.toLowerCase()};
 
             // Call the target intent
@@ -251,12 +262,32 @@ function startPlayer(player, session, callback) {
 
         // Start the player
 
-        player.randomPlay("tracks", function(reply) {
+        // just power on the player and then play what was last playing 
+
+        player.power(1, function(reply) {
             if (reply.ok)
-                callback(session.attributes, buildSpeechletResponse("Start Player", "Playing " + player.name, null, session.new));
-            else
-                callback(session.attributes, buildSpeechletResponse("Start Player", "Failed to start player " + player.name, null, true));
+            player.play(function(reply) {
+                if (reply.ok)
+                    callback(session.attributes, buildSpeechletResponse("Turn on Player", "Playing " + player.name, null, session.new));
+                else {
+                    console.log("Reply %j", reply);
+                    callback(session.attributes, buildSpeechletResponse("Start Player", "Failed to start playing " + player.name, null, true));
+                }
+            });
+            else {
+                console.log("Reply %j", reply);
+                callback(session.attributes, buildSpeechletResponse("Start Player", "Failed to turn on player " + player.name, null, true));
+            }
         });
+
+
+
+        // player.randomPlay("tracks", function(reply) {
+        //     if (reply.ok)
+        //         callback(session.attributes, buildSpeechletResponse("Start Player", "Playing " + player.name, null, session.new));
+        //     else
+        //         callback(session.attributes, buildSpeechletResponse("Start Player", "Failed to start player " + player.name, null, true));
+        // });
 
     } catch (ex) {
         console.log("Caught exception in startPlayer %j", ex);
@@ -333,8 +364,8 @@ function syncPlayers(squeezeserver, players, intent, session, callback) {
         // Try to find the target players. We need the sqeezeserver player object for the first, but only the player info
         // object for the second.
 
-        player1 = findPlayerObject(squeezeserver, players, ((typeof intent.slots.FirstPlayer.value !== 'undefined') && (intent.slots.FirstPlayer.value != null) ? intent.slots.FirstPlayer.value : session.attributes.player));
-        if (player1 == null) {
+        player1 = findPlayerObject(squeezeserver, players, ((typeof intent.slots.FirstPlayer.value !== 'undefined') && (intent.slots.FirstPlayer.value !== null) ? intent.slots.FirstPlayer.value : session.attributes.player));
+        if (player1 === null) {
 
             // Couldn't find the player, return an error response
 
@@ -601,7 +632,7 @@ function buildSpeechletResponse(title, output, repromptText, shouldEndSession) {
             }
         },
         shouldEndSession: shouldEndSession
-    }
+    };
 }
 
 /**
@@ -618,5 +649,5 @@ function buildResponse(sessionAttributes, speechletResponse) {
         version: "1.0",
         sessionAttributes: sessionAttributes,
         response: speechletResponse
-    }
+    };
 }
